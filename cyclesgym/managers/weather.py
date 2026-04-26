@@ -51,7 +51,7 @@ class WeatherManager(InputFileManager):
 
     def _to_str_immutables(self):
         s = ''
-        for (name, data) in self.immutables.iteritems():
+        for (name, data) in self.immutables.items():
             s += f'{name:<20}{data.values[0]}\n'
         return s
 

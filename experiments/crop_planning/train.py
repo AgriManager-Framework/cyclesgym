@@ -16,6 +16,14 @@ import wandb
 from wandb.integration.sb3 import WandbCallback
 import random
 import argparse
+import os
+
+
+def _default_rotation_crops():
+    env_value = os.environ.get("CYCLESGYM_ROTATION_CROPS", "").strip()
+    if env_value:
+        return [crop.strip() for crop in env_value.split(",") if crop.strip()]
+    return ['CornRM.100', 'SoybeanMG.3']
 
 
 class Train:
@@ -23,6 +31,7 @@ class Train:
 
     def __init__(self, experiment_config) -> None:
         self.config = experiment_config
+        self.rotation_crops = list(experiment_config.get('rotation_crops') or _default_rotation_crops())
         # rl config is configured from wandb config
 
     def create_envs(self):
@@ -87,10 +96,9 @@ class Train:
                 env_conf = dict(start_year=start_year, end_year=end_year, soil_file=soil_file,
                                 weather_generator_class=weather_generator_class,
                                 weather_generator_kwargs=weather_generator_kwargs,
-                                rotation_crops=['CornRM.100', 'SoybeanMG.3'])
+                                rotation_crops=self.rotation_crops)
                 env = env_class(**env_conf)
 
-                env = gym.wrappers.RecordEpisodeStatistics(env)
                 return env
 
             return _f
@@ -158,7 +166,7 @@ class Train:
                                   model_save_freq=int(self.config['eval_freq'] / self.config['n_process']))] + callback
         model.learn(total_timesteps=self.config["total_timesteps"], callback=callback)
 
-        return model, eval_env
+        return model, None
 
     def evaluate_log(self, model, eval_env):
         """
@@ -215,8 +223,26 @@ if __name__ == '__main__':
                              'the crop rotation used so far')
     parser.add_argument('-s', '--seed', type=int, default=0, metavar='N',
                         help='The random seed used for all number generators')
+    parser.add_argument('--total_timesteps', type=int, default=5000,
+                        help='Total PPO training timesteps')
+    parser.add_argument('--eval_freq', type=int, default=100,
+                        help='Evaluation frequency in timesteps')
+    parser.add_argument('--n_steps', type=int, default=80,
+                        help='Rollout steps per PPO update')
+    parser.add_argument('--batch_size', type=int, default=64,
+                        help='PPO mini-batch size')
+    parser.add_argument('--n_epochs', type=int, default=10,
+                        help='PPO epochs per rollout batch')
+    parser.add_argument('--n_process', '--n-process', dest='n_process', type=int, default=1,
+                        help='Number of vectorized environments')
+    parser.add_argument('--device', type=str, default='auto',
+                        help='Torch device for PPO')
+    parser.add_argument('--rotation_crops', '--rotation-crops', dest='rotation_crops', nargs='+', default=None,
+                        help='Rotation crops to expose to the crop-planning environment')
 
     args = vars(parser.parse_args())
+    if args['rotation_crops'] is None:
+        args['rotation_crops'] = _default_rotation_crops()
 
     set_random_seed(args['seed'])
     np.random.seed(args['seed'])
@@ -247,12 +273,16 @@ if __name__ == '__main__':
                                         target_year_range=np.arange(train_start_year, train_end_year + 1))
 
     config = dict(train_start_year=train_start_year, train_end_year=train_end_year, eval_start_year=eval_start_year, eval_end_year=eval_end_year,
-                  total_timesteps=500, eval_freq=100, n_steps=80, batch_size=64, n_epochs=10, run_id=0,
-                  norm_reward=True, method="PPO", verbose=1, n_process=1, device='auto',
+                  total_timesteps=args['total_timesteps'], eval_freq=args['eval_freq'],
+                  n_steps=args['n_steps'], batch_size=args['batch_size'], n_epochs=args['n_epochs'], run_id=0,
+                  norm_reward=True, method="PPO", verbose=1, n_process=args['n_process'], device=args['device'],
                   env_class=env_class, eval_env_class=eval_env_class, weather_generator_class=weather_generator_class,
                   weather_generator_kwargs=weather_generator_kwargs)
 
     config.update(args)
+
+    output_root = Path(os.environ.get("CYCLESGYM_OUTPUT_DIR", str(PROJECT_PATH))).resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
 
     wandb.init(
         config=config,
@@ -261,7 +291,7 @@ if __name__ == '__main__':
         entity=WANDB_ENTITY,
         monitor_gym=True,  # automatically upload gym environements' videos
         save_code=True,
-        dir=PROJECT_PATH,
+        dir=output_root,
     )
 
     config = wandb.config

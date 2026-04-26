@@ -68,7 +68,14 @@ class DailyOutputObserver(Observer):
         if len(column_list) != len(map_list):
             raise ValueError('Column list and map list should be of the same length')
         for c, m in zip(column_list, map_list):
-            data[c] = m[data[c]]
+            # pandas>=3 treats integer keys as labels (not positions).
+            # These observers define processing columns positionally.
+            if isinstance(c, int):
+                old_val = data.iloc[c]
+                data.iloc[c] = m[old_val]
+            else:
+                old_val = data[c]
+                data[c] = m[old_val]
         return data
 
     def compute_obs(self,

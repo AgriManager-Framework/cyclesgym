@@ -1,3 +1,4 @@
+import os
 import setuptools
 from setuptools.command.install import install
 
@@ -12,7 +13,7 @@ install_requires = [
 ]
 
 solve_requires = [
-    'torch >= 1.8.1+cpu',
+    'torch>=1.8.1',
     'stable-baselines3',
     'tensorboard',
     'wandb',
@@ -21,8 +22,11 @@ solve_requires = [
 
 class NewInstall(install):
     """Post-installation for installation mode."""
-    def __init__(self, *args, **kwargs):
-        super(NewInstall, self).__init__(*args, **kwargs)
+    def run(self):
+        super().run()
+        if os.environ.get("CYCLES_GYM_SKIP_INSTALL") == "1":
+            print("POST INSTALL skipped (CYCLES_GYM_SKIP_INSTALL=1)")
+            return
         print('POST INSTALL')
         from install_cycles import install_cycles
 
@@ -46,4 +50,3 @@ setuptools.setup(
         },
     cmdclass={'install': NewInstall},
 )
-

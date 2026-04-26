@@ -8,7 +8,7 @@ import numpy as np
 from gym import spaces
 
 from cyclesgym.managers import *
-from cyclesgym.utils.paths import CYCLES_PATH
+from cyclesgym.utils.paths import CYCLES_INPUT_PATH, CYCLES_OUTPUT_PATH, CYCLES_PATH
 from cyclesgym.envs.utils import *
 
 
@@ -126,6 +126,21 @@ class CyclesEnv(gym.Env):
         self.weather_generator = WEATHER_GENERATOR_CLASS(**WEATHER_GENERATOR_KWARGS)
         self.weather_generator.generate_weather()
 
+    def seed(self, seed=None):
+        """
+        Compatibility method for Gym-based tooling (and shimmy) that still
+        expects environments to expose ``seed``.
+        """
+        if seed is None:
+            return [None]
+        np.random.seed(seed)
+        if self.action_space is not None:
+            try:
+                self.action_space.seed(seed)
+            except Exception:
+                pass
+        return [seed]
+
     def _post_init_setup(self):
         self.weather_manager = None
         self.crop_output_file = None
@@ -139,9 +154,9 @@ class CyclesEnv(gym.Env):
         """
         self.simID = create_sim_id()
         self.input_dir = MyTemporaryDirectory(
-            path=CYCLES_PATH.joinpath('input', self.simID))
+            path=CYCLES_INPUT_PATH.joinpath(self.simID))
         self.output_dir = MyTemporaryDirectory(
-            path=CYCLES_PATH.joinpath('output', self.simID))
+            path=CYCLES_OUTPUT_PATH.joinpath(self.simID))
 
     def _get_output_dir(self):
         """
@@ -341,12 +356,36 @@ class PartialObsEnv(gym.ObservationWrapper):
             dtype=self.env.observation_space.dtype)
 
     def reset(self, **kwargs):
-        obs = super().reset(**kwargs)
+        # Support both old Gym reset API (obs) and newer API (obs, info).
+        reset_out = self.env.reset(**kwargs)
+        if isinstance(reset_out, tuple) and len(reset_out) == 2:
+            obs, info = reset_out
+            return_info = True
+        else:
+            obs = reset_out
+            info = {}
+            return_info = False
+
+        obs = self.observation(obs)
         if len(self.env.observer.obs_names) > np.count_nonzero(self.mask):
             obs_names = np.asarray(self.env.observer.obs_names)[self.mask]
             self.env.observer.obs_names = list(obs_names)
+        if return_info:
+            return obs, info
         return obs
+
+    def step(self, action):
+        """
+        Support both old Gym step API (obs, reward, done, info) and newer
+        API (obs, reward, terminated, truncated, info).
+        """
+        step_out = self.env.step(action)
+        if isinstance(step_out, tuple) and len(step_out) == 5:
+            obs, reward, terminated, truncated, info = step_out
+            return self.observation(obs), reward, terminated, truncated, info
+
+        obs, reward, done, info = step_out
+        return self.observation(obs), reward, done, info
 
     def observation(self, obs):
         return obs[self.mask]
-

@@ -1,6 +1,6 @@
 from datetime import timedelta
 from cyclesgym.envs.utils import date2ydoy, ydoy2date
-from cyclesgym.utils.pricing_utils import crop_prices, N_price_dollars_per_kg, crop_type
+from cyclesgym.utils.pricing_utils import crop_prices as default_crop_prices, N_price_dollars_per_kg, crop_type
 import datetime
 
 __all__ = ['CropRewarder']
@@ -8,10 +8,12 @@ __all__ = ['CropRewarder']
 
 class CropRewarder(object):
 
-    def __init__(self, season_manager, crop_name):
+    def __init__(self, season_manager, crop_name, crop_prices=None):
         self.season_manager = season_manager
         self.crop_name = crop_name
-        self.dollars_per_tonne = crop_prices[self.crop_name]
+        self.dollars_per_tonne = default_crop_prices[self.crop_name]
+        override_price = None if crop_prices is None else crop_prices.get(self.crop_name)
+        self.override_dollars_per_tonne = None if override_price is None else float(override_price)
         self.yield_column = crop_type[self.crop_name]
 
     def _harvest_profit(self, date, delta, action=None):
@@ -31,7 +33,9 @@ class CropRewarder(object):
 
             if previous_date < harvest_date <= date:
                 # Compute harvest profit
-                dollars_per_tonne = self.dollars_per_tonne[y_prev]
+                dollars_per_tonne = self.override_dollars_per_tonne
+                if dollars_per_tonne is None:
+                    dollars_per_tonne = self.dollars_per_tonne[y_prev]
                 harvest = harverst_df[self.yield_column].sum()
                 # Metric tonne per hectare
                 harvest_dollars_per_hectare = harvest * dollars_per_tonne
@@ -61,5 +65,3 @@ def compound_rewarder(rewarder_list: list):
             return sum([r.compute_reward(date, delta, action=action) for r in self.rewarder_list])
 
     return Compound(rewarder_list)
-
-

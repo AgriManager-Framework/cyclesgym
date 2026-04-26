@@ -19,6 +19,7 @@ class CropPlanning(CyclesEnv):
                  start_year,
                  end_year,
                  rotation_crops,
+                 crop_prices=None,
                  soil_file='GenericHagerstown.soil',
                  weather_generator_class=FixedWeatherGenerator,
                  weather_generator_kwargs={
@@ -53,6 +54,7 @@ class CropPlanning(CyclesEnv):
                          REINIT_FILE='N / A',
                          delta=365)
         self.rotation_crops = rotation_crops
+        self.crop_prices = crop_prices
         self.reset()
         self._generate_observation_space()
         self._generate_action_space(len(rotation_crops))
@@ -107,7 +109,7 @@ class CropPlanning(CyclesEnv):
                                       end_year=self.ctrl_base_manager.ctrl_dict['SIMULATION_END_YEAR'])
 
     def _init_rewarder(self, *args, **kwargs):
-        self.rewarder = compound_rewarder([CropRewarder(self.season_manager, name)
+        self.rewarder = compound_rewarder([CropRewarder(self.season_manager, name, crop_prices=self.crop_prices)
                                            for name in self.rotation_crops])
 
     def step(self, action) -> Tuple[np.ndarray, float, bool, dict]:
@@ -221,5 +223,3 @@ if __name__ == '__main__':
                 break
 
     print(rewards)
-
-

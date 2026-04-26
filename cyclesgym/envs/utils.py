@@ -51,11 +51,11 @@ def date2ydoy(date):
 
 def ydoy2date(y, doy):
     def ydoy2date_single(y: int, doy: int):
-        # Timedelta does not work with np.int64
-        if isinstance(y, np.int64):
-            y = int(y)
-        if isinstance(doy, np.int64):
-            doy = int(doy)
+        # Timedelta/date constructors require plain Python ints.
+        # Numpy/pandas scalar integers (and similar scalar-like types)
+        # can otherwise raise TypeError in some versions.
+        y = int(y)
+        doy = int(doy)
         return datetime.date(y, 1, 1) + datetime.timedelta(doy - 1)
 
     if hasattr(y, '__iter__') and hasattr(doy, '__iter__'):

@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 import os
 from cyclesgym.managers import WeatherManager
 from cyclesgym.envs.utils import MyTemporaryDirectory, create_sim_id
-from cyclesgym.utils.paths import CYCLES_PATH
+from cyclesgym.utils.paths import CYCLES_INPUT_PATH, CYCLES_PATH
 
 __all__ = ['shuffle_weather', 'adapt_weather_year', 'generate_random_weather',
            'WeatherShuffler']
@@ -24,7 +24,7 @@ class WeatherGenerator(ABC):
 
     def _get_weather_dir(self):
         # Get directory where sampled weather is stored
-        return CYCLES_PATH.joinpath('input', f'weather_{self.generator_id}')
+        return CYCLES_INPUT_PATH.joinpath(f'weather_{self.generator_id}')
 
     def sample_weather_path(self):
         return self._get_weather_dir().joinpath(

@@ -35,10 +35,12 @@ class Corn(CyclesEnv):
                      'base_weather_file': CYCLES_PATH.joinpath('input', 'RockSprings.weather')},
                  start_year=1980,
                  end_year=1980,
+                 crop_prices=None,
                  use_reinit=True
                  ):
         self.rotation_size = end_year - start_year + 1
         self.use_reinit = use_reinit
+        self.crop_prices = crop_prices
         super().__init__(SIMULATION_START_YEAR=start_year,
                          SIMULATION_END_YEAR=end_year,
                          ROTATION_SIZE=self.rotation_size,
@@ -121,7 +123,7 @@ class Corn(CyclesEnv):
                                            ])
 
     def _init_rewarder(self, *args, **kwargs):
-        self.rewarder = compound_rewarder([CropRewarder(self.season_manager, 'CornRM.90'),
+        self.rewarder = compound_rewarder([CropRewarder(self.season_manager, 'CornRM.90', crop_prices=self.crop_prices),
                                            NProfitabilityRewarder()])
 
     def _init_implementer(self, *args, **kwargs):
@@ -305,4 +307,3 @@ if __name__ == '__main__':
             if done:
                 break
     print(rewards)
-

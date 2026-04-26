@@ -15,6 +15,7 @@ from pathlib import Path
 from cyclesgym.utils.paths import PROJECT_PATH, CYCLES_PATH
 from cyclesgym.envs.weather_generator import WeatherShuffler
 import sys
+import os
 
 
 from cyclesgym.policies.dummy_policies import OpenLoopPolicy
@@ -78,8 +79,7 @@ class Train:
                                        weather_generator_class=WeatherShuffler,
                                        weather_generator_kwargs=weather_generator_kwargs)
 
-                #env = Monitor(env, 'runs')
-                env = gym.wrappers.RecordEpisodeStatistics(env)
+                # VecMonitor already tracks episode statistics at vector-env level.
                 return env
             return _f
 
@@ -203,7 +203,6 @@ class Train:
 
         train_env.seed(self.config['seed'])
 
-        eval_freq = int(self.config['eval_freq'] / self.config['n_process'])
         duration = self.config['end_year'] - self.config['start_year']
         total_timesteps = self.config["total_years"] * 53
         n_steps = int(self.config['n_steps'] / self.config['n_process'])
@@ -219,8 +218,9 @@ class Train:
 
 
         callback = self.get_eval_callbacks()
-        
-        model.learn(total_timesteps=total_timesteps, callback=callback, eval_freq=eval_freq)
+
+        # Evaluation cadence is already configured inside EvalCallbackCustom.
+        model.learn(total_timesteps=total_timesteps, callback=callback)
         model.save(str(self.config['run_id'])+'.zip')
         train_env.save(self.config['stats_path'])
         return model
@@ -404,6 +404,9 @@ if __name__ == '__main__':
                 sampling_start_year=1980, sampling_end_year=2005,
                 n_weather_samples=100, 
                 n_steps = 2048, with_obs_year = True)
+    output_root = Path(os.environ.get("CYCLESGYM_OUTPUT_DIR", str(PROJECT_PATH))).resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+
     wandb.init(
     config=config,
     sync_tensorboard=True,
@@ -412,7 +415,7 @@ if __name__ == '__main__':
     monitor_gym=True,       # automatically upload gym environements' videos
     save_code=True,
     group="group_name",
-    dir=PROJECT_PATH
+    dir=output_root
     )
 
     
@@ -440,9 +443,11 @@ if __name__ == '__main__':
 
     
     if wandb.config['posthoc']:
-        stats_path = 'data/vec_norms/vec_normalize_1xw45c9p.pkl'
+        stats_path = str(output_root.joinpath('data', 'vec_norms', 'vec_normalize_1xw45c9p.pkl'))
     else:
-        stats_path = 'runs/vec_normalize_' + str(wandb.run.id) + '.pkl' 
+        stats_dir = output_root.joinpath('runs')
+        stats_dir.mkdir(parents=True, exist_ok=True)
+        stats_path = str(stats_dir.joinpath('vec_normalize_' + str(wandb.run.id) + '.pkl'))
     
     wandb.config.update({'stats_path': stats_path})
 
@@ -490,4 +495,3 @@ if __name__ == '__main__':
 
     
     
-
